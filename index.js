@@ -8,9 +8,9 @@ var pad = function (obj) {
 
 program
     .version('1.0.0')
-    .option('-t, --token [token]', 'GitHub auth token.')
-    .option('-r, --repo [repo url]', 'GitHub repo URL.')
-    .option('-d, --debug', 'Enable debug output');
+    .option('-d, --debug', 'Enable debug output.')
+    .option('-t, --token [token]', '(REQUIRED) GitHub auth token.')
+    .option('-r, --repo [repo url]', '(REQUIRED) GitHub repo URL.');
 
 program.on('--help', function () {
     console.log('Examples:');
