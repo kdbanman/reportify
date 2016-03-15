@@ -1,3 +1,5 @@
+#! /usr/bin/env node
+
 var log = require('loglevel');
 var program = require('commander');
 var github = require('octonode');
