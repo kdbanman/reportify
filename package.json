@@ -16,5 +16,10 @@
   "bugs": {
     "url": "https://github.com/kdbanman/reportify/issues"
   },
-  "homepage": "https://github.com/kdbanman/reportify#readme"
+  "homepage": "https://github.com/kdbanman/reportify#readme",
+  "dependencies": {
+    "commander": "^2.9.0",
+    "loglevel": "^1.4.0",
+    "octonode": "^0.7.4"
+  }
 }
