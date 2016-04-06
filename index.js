@@ -91,8 +91,11 @@ var printEvents = function (events, issueHeader) {
             eventString += ' ' + event.label.name;
         } else if (event.assignee) {
             eventString += ' to ' + event.assignee.login;
-        } else if (event.event === 'closed' && event.commit_id) {
-            eventString += ' with commit ' + event.commit_id.slice(0, 6);
+        } else if (event.event === 'closed') {
+            if (event.commit_id) {
+                eventString += ' with commit ' + event.commit_id.slice(0, 6);
+            }
+            eventString += ' on ' + event.created_at;
         }
 
         // Append verb subject
@@ -238,6 +241,9 @@ buildIssuesPromises().then(function () {
 
             Q.allSettled(issuesEventsPromises).then(
                 function () {
+                    log.debug('Sorting issues by closure date.');
+                    receivedIssues.sort(closeDateComparator);
+
                     log.debug('Printing issues.');
                     printIssues(receivedIssues);
                 }, function (err) {
