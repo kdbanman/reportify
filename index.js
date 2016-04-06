@@ -3,6 +3,7 @@
 var log = require('loglevel');
 var program = require('commander');
 var github = require('octonode');
+var Q = require('q');
 
 var pad = function (obj) {
     return ' '.repeat(obj.toString().length);
@@ -62,7 +63,7 @@ log.debug('');
 var receivedIssues = [];
 
 
-var getLabelNames = function (issue) {
+var extractLabelNames = function (issue) {
     if (issue.labels.length > 0) {
         var names = '';
         issue.labels.forEach(function (label) {
@@ -77,7 +78,7 @@ var printEvents = function (events, issueHeader) {
     log.debug('Printing ' + events.length + ' events.');
     events.forEach(function (event) {
         var padLog = function (msg) {
-            log.info(pad(issueHeader + '    ') + msg);
+            log.info(pad('    ') + msg);
         };
 
         // Pad and capitalize event verb
@@ -119,7 +120,7 @@ var printIssues = function (issues) {
         if (issue.assignee) 
             padLog('Assigned to ' + issue.assignee.login);
         if (issue.labels.length > 0)
-            padLog('Labelled ' + getLabelNames(issue));
+            padLog('Labelled ' + extractLabelNames(issue));
         if (issue.milestone) 
             padLog('Part of \'' + issue.milestone.title + '\' milestone');
         padLog('Issue is ' + issue.state);
@@ -131,24 +132,32 @@ var printIssues = function (issues) {
     });
 };
 
-var getEvents = function (issues) {
-    log.debug('Augmenting ' + issues.length + ' issues with events.');
-    issues.forEach(function (issue) {
-        log.debug('Augmenting issue ' + issue.number);
+var getIssueEvents = function (issue) {
+    return Q.Promise(function (resolve, reject) {
         client.get(issue.events_url, function (err, status, eventsPage) {
             if (err) {
-                log.error(err);
-                return;
+                reject(err);
             }
             if (status !== 200) {
-                log.error(new Error('Issue Events error'));
-                return;
+                reject('Issue Events error bad status ' + status);
             }
             issue.events = eventsPage;
-
-            printIssues([issue]);
+            resolve();
         });
     });
+};
+
+var getEvents = function (issues) {
+    log.debug('Augmenting ' + issues.length + ' issues with events.');
+
+    Q.allSettled(issues.map(getIssueEvents)).then(
+        function () {
+            printIssues(receivedIssues);
+        }, function (err) {
+            log.error(err);
+        }, function (something) {
+            log.info(something);
+        });
 };
 
 var getIssuesPage = function (pageNumber, perPage) {
