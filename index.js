@@ -60,8 +60,8 @@ log.debug('Repo accessed:');
 log.debug(repo);
 log.debug('');
 
+var issuesPromises = [];
 var receivedIssues = [];
-
 
 var extractLabelNames = function (issue) {
     if (issue.labels.length > 0) {
@@ -132,32 +132,65 @@ var printIssues = function (issues) {
     });
 };
 
+var getLastCloseDate = function (issue) {
+    if (!issue.events) {
+        return;
+    }
+    var date;
+    issue.events.forEach(function (event) {
+        if (event.event === 'closed') {
+            date = event.created_at;
+        }
+    });
+    return date;
+};
+
+var closeDateComparator = function (issueA, issueB) {
+    if (!issueA.events && !issueB.events) {
+        // TODO sort by id
+        // TODO if issue open
+    }
+    var closeDateA = getLastCloseDate(issueA);
+    var closeDateB = getLastCloseDate(issueB);
+
+    if (!closeDateA && closeDateB) {
+        return 1;
+    }
+    if (closeDateA && !closeDateB) {
+        return -1;
+    }
+    if (!closeDateA && !closeDateB) {
+        return 0;
+    }
+
+    return closeDateA.toUpperCase().localeCompare(closeDateB.toUpperCase());
+};
+
 var getIssueEvents = function (issue) {
+    log.debug('Creating promise for issue ' + issue.number + ' events');
     return Q.Promise(function (resolve, reject) {
+        log.debug('Getting events for issue ' + issue.number);
+
         client.get(issue.events_url, function (err, status, eventsPage) {
+            log.debug('Response received for issue ' + issue.number + ' events');
             if (err) {
+                log.debug(err);
                 reject(err);
             }
             if (status !== 200) {
+                log.debug(err);
                 reject('Issue Events error bad status ' + status);
             }
             issue.events = eventsPage;
-            resolve();
+            resolve(issue);
         });
     });
 };
 
-var getEvents = function (issues) {
-    log.debug('Augmenting ' + issues.length + ' issues with events.');
+var getEvents = function () {
+    log.debug('Augmenting ' + receivedIssues.length + ' issues with events.');
 
-    Q.allSettled(issues.map(getIssueEvents)).then(
-        function () {
-            printIssues(receivedIssues);
-        }, function (err) {
-            log.error(err);
-        }, function (something) {
-            log.info(something);
-        });
+    issuesPromises = receivedIssues.map(getIssueEvents);
 };
 
 var getIssuesPage = function (pageNumber, perPage) {
@@ -166,26 +199,40 @@ var getIssuesPage = function (pageNumber, perPage) {
     if (perPage == null || perPage < 1 || perPage > 25)
         perPage = 25;
 
-    repo.issues({
-        state: 'all',
-        page: pageNumber,
-        per_page: perPage
-    }, function (err, issuesPage) {
-        if (err) {
-            log.error(err);
-            return;
-        }
-        log.debug('Issues received: (' + issuesPage.length + ')');
-        //log.debug(issuesPage);
+    return Q.Promise(function (resolve, reject) {
+        repo.issues({
+            state: 'all',
+            page: pageNumber,
+            per_page: perPage
+        }, function (err, issuesPage) {
+            if (err) {
+                reject(err);
+            }
+            log.debug('Issues received: (' + issuesPage.length + ')');
 
-        receivedIssues = receivedIssues.concat(issuesPage);
+            receivedIssues = receivedIssues.concat(issuesPage);
 
-        if (issuesPage.length == perPage) {
-            getIssuesPage(pageNumber + 1);
-        } else {
-            getEvents(receivedIssues);
-        }
+            if (issuesPage.length == perPage) {
+                getIssuesPage(pageNumber + 1);
+            } else {
+                getEvents();
+                resolve();
+            }
+        });
     });
 };
 
-getIssuesPage();
+getIssuesPage().then(function () {
+    Q.allSettled(issuesPromises).then(
+            function () {
+                log.debug('Printing issues.');
+                printIssues(receivedIssues);
+            }, function (err) {
+                log.error(err);
+            }, function (something) {
+                log.info(something);
+            });
+
+}, function (err) {
+    log.error(err);
+});
