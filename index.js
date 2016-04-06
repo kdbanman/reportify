@@ -64,7 +64,10 @@ var getLabelNames = function (issue) {
     }
 }
 
+var receivedIssues = [];
+
 var printIssues = function (issues) {
+    log.debug('Printing ' + issues.length + ' issues.');
     issues.forEach(function (issue) {
         var issueHeader = issue.number + ': ';
         var padLog = function (msg) {
@@ -85,7 +88,7 @@ var printIssues = function (issues) {
     });
 };
 
-var printIssuesPage = function (pageNumber, perPage) {
+var getIssuesPage = function (pageNumber, perPage) {
     if (pageNumber == null || pageNumber < 1)
         pageNumber = 1;
     if (perPage == null || perPage < 1 || perPage > 25)
@@ -103,12 +106,14 @@ var printIssuesPage = function (pageNumber, perPage) {
         log.debug('Issues received:');
         log.debug(issuesPage);
 
-        printIssues(issuesPage);
+        receivedIssues.concat(issuesPage);
 
         if (issuesPage.length == perPage) {
-            printIssuesPage(pageNumber + 1);
+            getIssuesPage(pageNumber + 1);
+        } else {
+            printIssues(receivedIssues);
         }
     });
 };
 
-printIssuesPage();
+getIssuesPage();
