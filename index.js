@@ -61,6 +61,7 @@ log.debug(repo);
 log.debug('');
 
 var issuesPromises = [];
+var issuesEventsPromises = [];
 var receivedIssues = [];
 
 var extractLabelNames = function (issue) {
@@ -187,52 +188,63 @@ var getIssueEvents = function (issue) {
     });
 };
 
-var getEvents = function () {
+var buildEventsPromises = function () {
     log.debug('Augmenting ' + receivedIssues.length + ' issues with events.');
 
-    issuesPromises = receivedIssues.map(getIssueEvents);
+    issuesEventsPromises = receivedIssues.map(getIssueEvents);
 };
 
-var getIssuesPage = function (pageNumber, perPage) {
-    if (pageNumber == null || pageNumber < 1)
-        pageNumber = 1;
-    if (perPage == null || perPage < 1 || perPage > 25)
-        perPage = 25;
+var buildIssuesPromises = function () {
+    return Q.promise(function (resolve, reject) {
 
-    return Q.Promise(function (resolve, reject) {
         repo.issues({
             state: 'all',
-            page: pageNumber,
-            per_page: perPage
+            per_page: 1
         }, function (err, issuesPage) {
             if (err) {
                 reject(err);
             }
-            log.debug('Issues received: (' + issuesPage.length + ')');
-
-            receivedIssues = receivedIssues.concat(issuesPage);
-
-            if (issuesPage.length == perPage) {
-                getIssuesPage(pageNumber + 1);
-            } else {
-                getEvents();
-                resolve();
+            if (issuesPage.length === 0) {
+                throw 'No issues present';
             }
+            var issueCount = issuesPage[0].number;
+            var pageCount = issueCount / 25 + 1;
+            while (issuesPromises.length < pageCount) {
+                issuesPromises.push(Q.Promise(function (resolve, reject) {
+                    repo.issues({
+                        state: 'all',
+                        page: issuesPromises.length + 1,
+                        per_page: 25
+                    }, function (err, issuesPage) {
+                        if (err) {
+                            reject(err);
+                        }
+                        log.debug('Issues received: (' + issuesPage.length + ')');
+
+                        receivedIssues = receivedIssues.concat(issuesPage);
+                        resolve();
+                    });
+                }));
+            }
+            resolve();
         });
     });
 };
 
-getIssuesPage().then(function () {
+buildIssuesPromises().then(function () {
     Q.allSettled(issuesPromises).then(
-            function () {
-                log.debug('Printing issues.');
-                printIssues(receivedIssues);
-            }, function (err) {
-                log.error(err);
-            }, function (something) {
-                log.info(something);
-            });
+        function () {
+            buildEventsPromises();
 
-}, function (err) {
-    log.error(err);
+            Q.allSettled(issuesEventsPromises).then(
+                function () {
+                    log.debug('Printing issues.');
+                    printIssues(receivedIssues);
+                }, function (err) {
+                    log.error(err);
+                }, function (something) {
+                    log.info(something);
+                });
+        }
+    );
 });
