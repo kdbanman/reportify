@@ -5,6 +5,8 @@ var program = require('commander');
 var github = require('octonode');
 var Q = require('q');
 
+var comparators = require('./src/comparators');
+
 var pad = function (obj) {
     return ' '.repeat(obj.toString().length);
 };
@@ -149,47 +151,14 @@ var printIssues = function (issues) {
     });
 };
 
-var getLastCloseDate = function (issue) {
-    if (!issue.events) {
-        return;
-    }
-    var date = undefined;
-    issue.events.forEach(function (event) {
-        if (event.event === 'closed') {
-            date = event.created_at;
-        }
-    });
-    return date;
-};
-
-var closeDateComparator = function (issueA, issueB) {
-    if (!issueA.state === 'open' && !issueB.state === 'open') {
-        return issueA.number -  issueB.number;
-    }
-    var closeDateA = getLastCloseDate(issueA);
-    var closeDateB = getLastCloseDate(issueB);
-
-    if (!closeDateA && closeDateB) {
-        return -1;
-    }
-    if (closeDateA && !closeDateB) {
-        return 1;
-    }
-    if (!closeDateA && !closeDateB) {
-        throw 'Neither issue closed date found, should not hit this in comparator function.';
-    }
-
-    return closeDateA.toUpperCase().localeCompare(closeDateB.toUpperCase());
-};
-
 var getIssueEvents = function (issue) {
     log.debug('Creating promise for issue ' + issue.number + ' events');
     return Q.Promise(function (resolve, reject) {
         log.debug('Getting events for issue ' + issue.number);
 
         client.get(issue.events_url, function (err, status, eventsPage) {
-            log.debug('Response received for issue ' + issue.number + ' events');
-            if (err) {
+            log.debug('Response received for issue ' + issue.number + '\'s events');
+            if (err != null) {
                 log.debug(err);
                 reject(err);
             }
@@ -216,7 +185,7 @@ var buildIssuesPromises = function (max) {
             state: 'all',
             per_page: 1
         }, function (err, issuesPage) {
-            if (err) {
+            if (err != null) {
                 reject(err);
             }
             if (issuesPage.length === 0) {
@@ -231,7 +200,7 @@ var buildIssuesPromises = function (max) {
                         page: issuesPromises.length + 1,
                         per_page: 25
                     }, function (err, issuesPage) {
-                        if (err) {
+                        if (err != null) {
                             reject(err);
                         }
                         log.debug('Issues received: (' + issuesPage.length + ')');
@@ -246,7 +215,7 @@ var buildIssuesPromises = function (max) {
     });
 };
 
-buildIssuesPromises(30).then(function () {
+buildIssuesPromises().then(function () {
     Q.allSettled(issuesPromises).then(
         function () {
             buildEventsPromises();
@@ -254,7 +223,7 @@ buildIssuesPromises(30).then(function () {
             Q.allSettled(issuesEventsPromises).then(
                 function () {
                     log.debug('Sorting issues by closure date.');
-                    receivedIssues.sort(closeDateComparator);
+                    receivedIssues.sort(comparators.closeDate);
 
                     log.debug('Printing issues.');
                     printIssues(receivedIssues);
