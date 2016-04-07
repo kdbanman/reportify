@@ -219,7 +219,7 @@ var buildCommitPromises = function () {
     receivedIssues.forEach(getEventCommits);
 };
 
-var buildIssuesPromises = function (max) {
+var buildIssuesPromises = function () {
     return Q.promise(function (resolve, reject) {
 
         repo.issues({
@@ -232,10 +232,10 @@ var buildIssuesPromises = function (max) {
             if (issuesPage.length === 0) {
                 throw 'No issues present';
             }
-            var issueCount = Math.min(issuesPage[0].number, max);
+            var issueCount = issuesPage[0].number;
             var pageCount = issueCount / 25 + 1;
-            var perPage = Math.min(25, max);
-            while (issuesPromises.length < pageCount || issuesPromises.length * perPage < max) {
+            var perPage = 25;
+            while (issuesPromises.length < pageCount) {
                 issuesPromises.push(Q.Promise(function (resolve, reject) {
                     repo.issues({
                         state: 'all',
@@ -257,7 +257,7 @@ var buildIssuesPromises = function (max) {
     });
 };
 
-buildIssuesPromises(3).then(function () {
+buildIssuesPromises().then(function () {
     Q.allSettled(issuesPromises).then(
         function () {
             buildEventsPromises();
