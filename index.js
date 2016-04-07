@@ -75,8 +75,11 @@ log.debug('Repo accessed:');
 log.debug(repo);
 log.debug('');
 
+
+
 var issuesPromises = [];
 var issuesEventsPromises = [];
+var eventCommitsPromises = [];
 var receivedIssues = [];
 
 var extractLabelNames = function (issue) {
@@ -124,6 +127,15 @@ var printEvents = function (events, issueHeader) {
 
         // Log event verb phrase
         padLog(eventString);
+
+        if (event.commit != null) {
+            padLog(
+                pad(issueHeader + '      ') +
+                event.commit_id.slice(0,6) +
+                ':  \'' +
+                event.commit.commit.message +
+                '\'');
+        }
     });
 };
 
@@ -152,7 +164,7 @@ var printIssues = function (issues) {
 };
 
 var getIssueEvents = function (issue) {
-    log.debug('Creating promise for issue ' + issue.number + ' events');
+    log.debug('Creating promise for issue ' + issue.number + '\'s events');
     return Q.Promise(function (resolve, reject) {
         log.debug('Getting events for issue ' + issue.number);
 
@@ -172,10 +184,39 @@ var getIssueEvents = function (issue) {
     });
 };
 
+var getEventCommits = function (issue) {
+    log.debug('Creating promise for issue ' + issue.number + '\'s event commits');
+    if (issue.events != null) {
+        log.debug('Getting commits for issue ' + issue.number + '\'s event commits');
+
+        issue.events.forEach( function (event) {
+            if (event.commit_id) {
+                eventCommitsPromises.push( Q.Promise(function (resolve, reject) {
+                    repo.commit(event.commit_id, function (err, commit) {
+                        log.debug('Response received for one of issue ' + issue.number + '\'s event commits');
+                        if (err != null) {
+                            reject(err);
+                        }
+                        event.commit = commit;
+                        resolve()
+                    });
+                }));
+            }
+        });
+    }
+};
+
 var buildEventsPromises = function () {
-    log.debug('Augmenting ' + receivedIssues.length + ' issues with events.');
+    log.debug('Promising to augment ' + receivedIssues.length + ' issues with events.');
 
     issuesEventsPromises = receivedIssues.map(getIssueEvents);
+};
+
+var buildCommitPromises = function () {
+    log.debug('Promising to augment ' + receivedIssues.length + ' issues with event commits');
+
+    // builds eventCommitsPromises by side effects
+    receivedIssues.forEach(getEventCommits);
 };
 
 var buildIssuesPromises = function (max) {
@@ -191,14 +232,15 @@ var buildIssuesPromises = function (max) {
             if (issuesPage.length === 0) {
                 throw 'No issues present';
             }
-            var issueCount = Math.max(issuesPage[0].number, max);
+            var issueCount = Math.min(issuesPage[0].number, max);
             var pageCount = issueCount / 25 + 1;
-            while (issuesPromises.length < pageCount) {
+            var perPage = Math.min(25, max);
+            while (issuesPromises.length < pageCount || issuesPromises.length * perPage < max) {
                 issuesPromises.push(Q.Promise(function (resolve, reject) {
                     repo.issues({
                         state: 'all',
                         page: issuesPromises.length + 1,
-                        per_page: 25
+                        per_page: perPage
                     }, function (err, issuesPage) {
                         if (err != null) {
                             reject(err);
@@ -215,23 +257,30 @@ var buildIssuesPromises = function (max) {
     });
 };
 
-buildIssuesPromises().then(function () {
+buildIssuesPromises(3).then(function () {
     Q.allSettled(issuesPromises).then(
         function () {
             buildEventsPromises();
 
             Q.allSettled(issuesEventsPromises).then(
                 function () {
-                    log.debug('Sorting issues by closure date.');
-                    receivedIssues.sort(comparators.closeDate);
+                    buildCommitPromises();
 
-                    log.debug('Printing issues.');
-                    printIssues(receivedIssues);
-                }, function (err) {
-                    log.error(err);
-                }, function (something) {
-                    log.info(something);
-                });
+                    Q.allSettled(eventCommitsPromises).then(
+                        function () {
+                            log.debug('Sorting issues by closure date.');
+                            receivedIssues.sort(comparators.closeDate);
+
+                            log.debug('Printing issues.');
+                            printIssues(receivedIssues);
+                        }, function (err) {
+                            log.error(err);
+                        }, function (something) {
+                            log.info(something);
+                        }
+                    );
+                }
+            );
         }
     );
 });
