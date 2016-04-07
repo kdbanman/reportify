@@ -16,22 +16,30 @@ String.prototype.capitalize = function () {
 
 program
     .version('1.0.0')
+    .option('-r, --repo [repo url]', '(REQUIRED) GitHub repo URL.')
     .option('-d, --debug', 'Enable debug output.')
-    .option('-t, --token [token]', '(REQUIRED) GitHub auth token.')
-    .option('-r, --repo [repo url]', '(REQUIRED) GitHub repo URL.');
+    .option('-t, --token [token]', 'GitHub auth token.');
 
 program.on('--help', function () {
     console.log('Examples:');
     console.log('');
-    console.log('   $ reportify ' + 
-    '-r polyball/polyball ' + 
-    '-t 112c41694a8404f929464b2511ac2c90763cdf3d');
     console.log('');
+    console.log('No token, public repos only:');
+    console.log('   $ reportify ' +
+        '-r kdbanman/reportify ');
+    console.log('');
+    console.log('');
+    console.log('Your token with access to your private repos:');
+    console.log('   $ reportify ' +
+        '-r polyball/polyball ' +
+        '-t 112c41694a8404f929464b2511ac2c90763cdf3d');
+    console.log('');
+
 });
 
 program.parse(process.argv);
 
-if (!program.repo || !program.token) {
+if (!program.repo) {
     console.warn('Incorrect usage.');
     program.outputHelp();
     process.exit(1);
@@ -50,7 +58,12 @@ log.info(
     program.token + '...');
 log.info('');
 
-var client = github.client(program.token);
+var client;
+if (!program.token) {
+    client = github.client();
+} else {
+    client = github.client(program.token);
+}
 log.debug('Client created:');
 log.debug(client);
 log.debug('');
@@ -140,7 +153,7 @@ var getLastCloseDate = function (issue) {
     if (!issue.events) {
         return;
     }
-    var date;
+    var date = undefined;
     issue.events.forEach(function (event) {
         if (event.event === 'closed') {
             date = event.created_at;
@@ -150,21 +163,20 @@ var getLastCloseDate = function (issue) {
 };
 
 var closeDateComparator = function (issueA, issueB) {
-    if (!issueA.events && !issueB.events) {
-        // TODO sort by id
-        // TODO if issue open
+    if (!issueA.state === 'open' && !issueB.state === 'open') {
+        return issueA.number -  issueB.number;
     }
     var closeDateA = getLastCloseDate(issueA);
     var closeDateB = getLastCloseDate(issueB);
 
     if (!closeDateA && closeDateB) {
-        return 1;
-    }
-    if (closeDateA && !closeDateB) {
         return -1;
     }
+    if (closeDateA && !closeDateB) {
+        return 1;
+    }
     if (!closeDateA && !closeDateB) {
-        return 0;
+        throw 'Neither issue closed date found, should not hit this in comparator function.';
     }
 
     return closeDateA.toUpperCase().localeCompare(closeDateB.toUpperCase());
