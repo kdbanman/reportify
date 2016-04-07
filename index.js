@@ -197,7 +197,7 @@ var buildEventsPromises = function () {
     issuesEventsPromises = receivedIssues.map(getIssueEvents);
 };
 
-var buildIssuesPromises = function () {
+var buildIssuesPromises = function (max) {
     return Q.promise(function (resolve, reject) {
 
         repo.issues({
@@ -210,7 +210,7 @@ var buildIssuesPromises = function () {
             if (issuesPage.length === 0) {
                 throw 'No issues present';
             }
-            var issueCount = issuesPage[0].number;
+            var issueCount = Math.max(issuesPage[0].number, max);
             var pageCount = issueCount / 25 + 1;
             while (issuesPromises.length < pageCount) {
                 issuesPromises.push(Q.Promise(function (resolve, reject) {
@@ -234,7 +234,7 @@ var buildIssuesPromises = function () {
     });
 };
 
-buildIssuesPromises().then(function () {
+buildIssuesPromises(30).then(function () {
     Q.allSettled(issuesPromises).then(
         function () {
             buildEventsPromises();
