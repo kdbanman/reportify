@@ -17,8 +17,8 @@ String.prototype.capitalize = function () {
 program
     .version('1.0.0')
     .option('-r, --repo [repo url]', '(REQUIRED) GitHub repo URL.')
-    .option('-d, --debug', 'Enable debug output.')
-    .option('-t, --token [token]', 'GitHub auth token.');
+    .option('-t, --token [token]', 'GitHub auth token.')
+    .option('-d, --debug', 'Enable debug output.');
 
 program.on('--help', function () {
     console.log('Examples:');
