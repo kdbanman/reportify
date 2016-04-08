@@ -4,6 +4,7 @@ var log = require('loglevel');
 var program = require('commander');
 var github = require('octonode');
 var Q = require('q');
+var dateFormat = require('dateformat');
 
 var comparators = require('./src/comparators');
 
@@ -14,6 +15,11 @@ var pad = function (obj) {
 // Courtesy Steve Hansell of http://stackoverflow.com/a/3291856
 String.prototype.capitalize = function () {
     return this.charAt(0).toUpperCase() + this.slice(1);
+};
+
+var readableDate = function (dateParam) {
+    var date = new Date(dateParam);
+    return dateFormat(date, "mmm dS, yyyy, h:MM TT");
 };
 
 program
@@ -101,19 +107,23 @@ var printEvents = function (events, issueHeader) {
         };
 
         // Pad and capitalize event verb
-        var eventString = event.event.capitalize();
-        eventString = pad(issueHeader + '  ') + eventString;
+        var eventString = pad(issueHeader + '  ');
+
+        if (event.created_at) {
+            eventString += readableDate(event.created_at) + ': ';
+        }
+
+        if (event.event) {
+            eventString += event.event.capitalize();
+        }
 
         // Append verb object
         if (event.label) {
             eventString += ' ' + event.label.name;
         } else if (event.assignee) {
             eventString += ' to ' + event.assignee.login;
-        } else if (event.event === 'closed') {
-            if (event.commit_id) {
-                eventString += ' with commit ' + event.commit_id.slice(0, 6);
-            }
-            eventString += ' on ' + event.created_at;
+        } else if (event.commit_id) {
+            eventString += ' with commit ' + event.commit_id.slice(0, 6);
         }
 
         // Append verb subject
