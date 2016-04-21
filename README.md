@@ -45,7 +45,7 @@ npm install -g reportify
 
 ### run
 
-reportify the repo `https://github.com/kdbanman/reportify` with auth token `112c41694a8404f929464b2511ac2c90763cdf3d` (not a real token)
+reportify the repo `https://github.com/kdbanman/reportify` with [auth token](https://github.com/blog/1509-personal-api-tokens)  `112c41694a8404f929464b2511ac2c90763cdf3d` (not a real token)
 
 ```bash
 $ reportify -r kdbanman/reportify -t 112c41694a8404f929464b2511ac2c90763cdf3d
